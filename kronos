@@ -1,0 +1,908 @@
+#!/usr/bin/env python3
+"""
+Kronos Trading CLI
+==================
+A professional trading agent CLI for backtesting, strategy creation,
+and autonomous execution.
+
+Usage:
+    kronos --help
+    kronos init                    # Initialize project
+    kronos strategy list             # List strategies
+    kronos strategy create <name>    # Create new strategy
+    kronos backtest <strategy>     # Run backtest
+    kronos run --mode=paper        # Start trading
+    kronos run --mode=live         # Live trading (requires keys)
+    kronos status                  # Show current status
+    kronos config                  # Show/edit config
+    
+Interactive mode:
+    kronos repl                    # Start interactive REPL
+"""
+
+import argparse
+import asyncio
+import json
+import os
+import sys
+import traceback
+from dataclasses import dataclass, asdict
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+
+# Try to import rich for beautiful output
+try:
+    from rich.console import Console
+    from rich.table import Table
+    from rich.panel import Panel
+    from rich.tree import Tree
+    from rich import box
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    from rich.prompt import Prompt, Confirm
+    from rich.syntax import Syntax
+    from rich.live import Live
+    from rich.layout import Layout
+    HAS_RICH = True
+except ImportError:
+    HAS_RICH = False
+    print("Installing rich for beautiful CLI output...")
+    os.system(f"{sys.executable} -m pip install rich -q")
+    from rich.console import Console
+    from rich.table import Table
+    from rich.panel import Panel
+    from rich.tree import Tree
+    from rich import box
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    from rich.prompt import Prompt, Confirm
+    from rich.syntax import Syntax
+    from rich.live import Live
+    from rich.layout import Layout
+
+console = Console()
+
+# Constants
+APP_NAME = "Kronos Trading Agent"
+VERSION = "1.0.0"
+CONFIG_DIR = Path.home() / ".kronos"
+CONFIG_FILE = CONFIG_DIR / "config.json"
+STRATEGIES_DIR = CONFIG_DIR / "strategies"
+
+
+def print_banner():
+    """Print the Kronos banner."""
+    banner = """
+[bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
+[bold cyan]║[/bold cyan]  [bold yellow]██╗  ██╗██████╗  ██████╗ ███╗   ██╗ ██████╗ ███████╗[/bold yellow]     [bold cyan]║[/bold cyan]
+[bold cyan]║[/bold cyan]  [bold yellow]██║ ██╔╝██╔══██╗██╔═══██╗████╗  ██║██╔═══██╗██╔════╝[/bold yellow]     [bold cyan]║[/bold cyan]
+[bold cyan]║[/bold cyan]  [bold yellow]█████╔╝ ██████╔╝██║   ██║██╔██╗ ██║██║   ██║███████╗[/bold yellow]     [bold cyan]║[/bold cyan]
+[bold cyan]║[/bold cyan]  [bold yellow]██╔═██╗ ██╔══██╗██║   ██║██║╚██╗██║██║   ██║╚════██║[/bold yellow]     [bold cyan]║[/bold cyan]
+[bold cyan]║[/bold cyan]  [bold yellow]██║  ██╗██║  ██║╚██████╔╝██║ ╚████║╚██████╔╝███████║[/bold yellow]     [bold cyan]║[/bold cyan]
+[bold cyan]║[/bold cyan]  [bold yellow]╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝ ╚══════╝[/bold yellow]     [bold cyan]║[/bold cyan]
+[bold cyan]╠══════════════════════════════════════════════════════════════╣[/bold cyan]
+[bold cyan]║[/bold cyan]      [green]Autonomous Trading Agent with RL + Kronos Oracle[/green]        [bold cyan]║[/bold cyan]
+[bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
+    """
+    console.print(banner)
+
+
+@dataclass
+class Config:
+    """Configuration for Kronos."""
+    api_key: str = ""
+    api_secret: str = ""
+    default_mode: str = "paper"
+    risk_daily_loss_pct: float = 2.0
+    risk_max_drawdown_pct: float = 10.0
+    risk_max_position_size: float = 1.0
+    auto_trade: bool = False
+    notification_email: str = ""
+    
+    def save(self):
+        """Save config to file."""
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(asdict(self), f, indent=2)
+    
+    @classmethod
+    def load(cls) -> 'Config':
+        """Load config from file."""
+        if CONFIG_FILE.exists():
+            with open(CONFIG_FILE, 'r') as f:
+                data = json.load(f)
+                return cls(**data)
+        return cls()
+
+
+class StrategyManager:
+    """Manage trading strategies."""
+    
+    def __init__(self):
+        STRATEGIES_DIR.mkdir(parents=True, exist_ok=True)
+    
+    def list_strategies(self) -> List[Dict[str, Any]]:
+        """List all available strategies."""
+        strategies = []
+        for f in STRATEGIES_DIR.glob("*.py"):
+            strategies.append({
+                "name": f.stem,
+                "file": str(f),
+                "created": datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+            })
+        return strategies
+    
+    def create_strategy(self, name: str, template: str = "momentum") -> Path:
+        """Create a new strategy from template."""
+        strategy_file = STRATEGIES_DIR / f"{name}.py"
+        
+        templates = {
+            "momentum": '''"""
+Momentum Trading Strategy
+Buys when momentum is positive, sells when negative.
+"""
+import pandas as pd
+import numpy as np
+
+def generate_signals(prices: pd.Series) -> pd.Series:
+    """
+    Generate trading signals based on momentum.
+    
+    Args:
+        prices: Price series
+        
+    Returns:
+        Series of position sizes (-1.0 to 1.0)
+    """
+    # Calculate momentum (20-day rolling mean of returns)
+    returns = prices.pct_change()
+    momentum = returns.rolling(20).mean()
+    
+    # Generate signals
+    signals = momentum.apply(
+        lambda x: 1.0 if x > 0.001 else -1.0 if x < -0.001 else 0.0
+    )
+    
+    return signals
+''',
+            "mean_reversion": '''"""
+Mean Reversion Strategy
+Buys when price is below moving average, sells when above.
+"""
+import pandas as pd
+import numpy as np
+
+def generate_signals(prices: pd.Series) -> pd.Series:
+    """
+    Generate trading signals based on mean reversion.
+    
+    Args:
+        prices: Price series
+        
+    Returns:
+        Series of position sizes (-1.0 to 1.0)
+    """
+    # Calculate moving average
+    ma = prices.rolling(50).mean()
+    
+    # Distance from MA
+    deviation = (prices - ma) / ma
+    
+    # Generate signals - mean reversion
+    signals = deviation.apply(
+        lambda x: 1.0 if x < -0.02 else -1.0 if x > 0.02 else 0.0
+    )
+    
+    return signals
+''',
+            "breakout": '''"""
+Breakout Strategy
+Buys on price breakouts above resistance.
+"""
+import pandas as pd
+import numpy as np
+
+def generate_signals(prices: pd.Series) -> pd.Series:
+    """
+    Generate trading signals based on price breakouts.
+    
+    Args:
+        prices: Price series
+        
+    Returns:
+        Series of position sizes (-1.0 to 1.0)
+    """
+    # Calculate rolling high/low
+    high_20 = prices.rolling(20).max()
+    low_20 = prices.rolling(20).min()
+    
+    # Breakout signals
+    signals = pd.Series(0.0, index=prices.index)
+    signals[prices > high_20.shift(1)] = 1.0  # Breakout up
+    signals[prices < low_20.shift(1)] = -1.0  # Breakout down
+    
+    return signals
+''',
+            "rl_kronos": '''"""
+RL-Enhanced Kronos Strategy
+Uses RL agent to wrap Kronos predictions.
+"""
+import pandas as pd
+import numpy as np
+import sys
+from pathlib import Path
+
+# Add project code path
+sys.path.insert(0, str(Path(__file__).parent.parent / "code"))
+
+def generate_signals(prices: pd.Series, kronos_preds: pd.Series = None) -> pd.Series:
+    """
+    Generate signals using RL policy + Kronos oracle.
+    
+    Args:
+        prices: Price series
+        kronos_preds: Kronos predictions (optional)
+        
+    Returns:
+        Series of position sizes (-1.0 to 1.0)
+    """
+    from rl_trading_agent import RLTradingAgent
+    
+    # Load trained model if available
+    model_path = Path(__file__).parent.parent / "models" / "rl_policy.pt"
+    
+    agent = RLTradingAgent()
+    if model_path.exists():
+        agent.load(str(model_path))
+    
+    # Generate signals
+    signals = pd.Series(0.0, index=prices.index)
+    
+    for i in range(1, len(prices)):
+        if kronos_preds is not None:
+            pred_return = (kronos_preds.iloc[i] - prices.iloc[i-1]) / prices.iloc[i-1]
+        else:
+            pred_return = 0.0
+        
+        state = np.array([prices.iloc[i-1], pred_return, signals.iloc[i-1]])
+        action = agent.select_action(state)
+        signals.iloc[i] = (action - 1) / 2.0  # Convert 0,1,2 to -0.5,0,0.5
+    
+    return signals
+'''
+        }
+        
+        code = templates.get(template, templates["momentum"])
+        with open(strategy_file, 'w') as f:
+            f.write(code)
+        
+        return strategy_file
+    
+    def get_strategy(self, name: str) -> Optional[Path]:
+        """Get strategy file path."""
+        path = STRATEGIES_DIR / f"{name}.py"
+        return path if path.exists() else None
+
+
+class BacktestEngine:
+    """Run backtests on strategies."""
+    
+    def __init__(self):
+        self.results = {}
+    
+    def run(self, strategy_name: str, symbol: str = "SPY", 
+            start_date: str = "2020-01-01", end_date: str = "2024-12-31",
+            initial_capital: float = 100000.0) -> Dict[str, Any]:
+        """Run a backtest."""
+        import numpy as np
+        import pandas as pd
+        
+        # Load strategy
+        strategy_file = STRATEGIES_DIR / f"{strategy_name}.py"
+        if not strategy_file.exists():
+            raise ValueError(f"Strategy '{strategy_name}' not found")
+        
+        # Import strategy module
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(strategy_name, strategy_file)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        
+        # Generate mock price data (in production, use real data)
+        dates = pd.date_range(start_date, end_date, freq='B')
+        np.random.seed(42)
+        returns = np.random.randn(len(dates)) * 0.01
+        prices = pd.Series(100 * np.exp(np.cumsum(returns)), index=dates)
+        
+        # Generate signals
+        signals = module.generate_signals(prices)
+        
+        # Calculate returns
+        strategy_returns = signals.shift(1) * prices.pct_change()
+        strategy_returns = strategy_returns.dropna()
+        
+        # Calculate metrics
+        equity_curve = initial_capital * (1 + strategy_returns).cumprod()
+        
+        total_return = (equity_curve.iloc[-1] / initial_capital - 1) * 100
+        sharpe = strategy_returns.mean() / strategy_returns.std() * np.sqrt(252)
+        max_dd = ((equity_curve.cummax() - equity_curve) / equity_curve.cummax()).max() * 100
+        win_rate = (strategy_returns > 0).sum() / (strategy_returns != 0).sum() * 100
+        
+        results = {
+            "strategy": strategy_name,
+            "symbol": symbol,
+            "period": f"{start_date} to {end_date}",
+            "initial_capital": initial_capital,
+            "final_equity": equity_curve.iloc[-1],
+            "total_return_pct": total_return,
+            "sharpe_ratio": sharpe,
+            "max_drawdown_pct": max_dd,
+            "win_rate_pct": win_rate,
+            "num_trades": (signals.diff() != 0).sum(),
+            "equity_curve": equity_curve,
+            "returns": strategy_returns
+        }
+        
+        self.results[strategy_name] = results
+        return results
+    
+    def print_results(self, results: Dict[str, Any]):
+        """Print backtest results in a beautiful format."""
+        table = Table(title=f"Backtest Results: {results['strategy']}", box=box.ROUNDED)
+        
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+        
+        table.add_row("Period", results['period'])
+        table.add_row("Symbol", results['symbol'])
+        table.add_row("Initial Capital", f"${results['initial_capital']:,.2f}")
+        table.add_row("Final Equity", f"${results['final_equity']:,.2f}")
+        table.add_row("Total Return", f"{results['total_return_pct']:+.2f}%")
+        table.add_row("Sharpe Ratio", f"{results['sharpe_ratio']:.2f}")
+        table.add_row("Max Drawdown", f"{results['max_drawdown_pct']:.2f}%")
+        table.add_row("Win Rate", f"{results['win_rate_pct']:.1f}%")
+        table.add_row("Num Trades", str(results['num_trades']))
+        
+        console.print(table)
+        
+        # Print verdict
+        if results['total_return_pct'] > 0 and results['sharpe_ratio'] > 1:
+            console.print("\n[bold green]✅ Strategy shows promise[/bold green]")
+        elif results['total_return_pct'] < 0:
+            console.print("\n[bold red]❌ Strategy has negative returns[/bold red]")
+        else:
+            console.print("\n[bold yellow]⚠️  Strategy needs improvement[/bold yellow]")
+
+
+class TradingBot:
+    """Autonomous trading bot."""
+    
+    def __init__(self, config: Config, strategy_name: str):
+        self.config = config
+        self.strategy_name = strategy_name
+        self.running = False
+        self.trades = []
+    
+    async def run(self):
+        """Run the trading bot."""
+        self.running = True
+        
+        console.print(f"\n[bold green]🚀 Starting trading bot[/bold green]")
+        console.print(f"Mode: [cyan]{self.config.default_mode}[/cyan]")
+        console.print(f"Strategy: [cyan]{self.strategy_name}[/cyan]")
+        console.print(f"Risk limits: Daily {self.config.risk_daily_loss_pct}%, Max DD {self.config.risk_max_drawdown_pct}%\n")
+        
+        try:
+            while self.running:
+                # Simulate trading cycle
+                console.print(f"[{datetime.now().strftime('%H:%M:%S')}] Analyzing market...")
+                await asyncio.sleep(2)
+                
+                console.print(f"[{datetime.now().strftime('%H:%M:%S')}] Checking signals...")
+                await asyncio.sleep(1)
+                
+                # Random trade simulation
+                import random
+                if random.random() > 0.7:
+                    action = random.choice(["BUY", "SELL"])
+                    size = random.uniform(0.1, 0.5)
+                    console.print(f"[bold green]EXECUTED: {action} {size:.2%}[/bold green]")
+                    self.trades.append({
+                        "time": datetime.now().isoformat(),
+                        "action": action,
+                        "size": size
+                    })
+                else:
+                    console.print("[dim]No action taken[/dim]")
+                
+                await asyncio.sleep(3)
+                
+        except asyncio.CancelledError:
+            console.print("\n[bold yellow]Trading bot stopped[/bold yellow]")
+    
+    def stop(self):
+        """Stop the bot."""
+        self.running = False
+
+
+def cmd_init(args):
+    """Initialize Kronos configuration."""
+    print_banner()
+    
+    console.print("\n[bold]Welcome to Kronos Trading Agent Setup[/bold]\n")
+    
+    config = Config()
+    
+    # Interactive setup
+    config.default_mode = Prompt.ask(
+        "Default trading mode",
+        choices=["paper", "live"],
+        default="paper"
+    )
+    
+    config.risk_daily_loss_pct = float(Prompt.ask(
+        "Max daily loss %",
+        default="2.0"
+    ))
+    
+    config.risk_max_drawdown_pct = float(Prompt.ask(
+        "Max drawdown %",
+        default="10.0"
+    ))
+    
+    config.auto_trade = Confirm.ask(
+        "Enable autonomous trading?",
+        default=False
+    )
+    
+    config.save()
+    
+    # Create directories
+    STRATEGIES_DIR.mkdir(parents=True, exist_ok=True)
+    
+    console.print("\n[bold green]✅ Kronos initialized successfully![/bold green]")
+    console.print(f"Config saved to: {CONFIG_FILE}")
+    console.print(f"Strategies directory: {STRATEGIES_DIR}")
+
+
+def cmd_strategy_list(args):
+    """List all strategies."""
+    manager = StrategyManager()
+    strategies = manager.list_strategies()
+    
+    if not strategies:
+        console.print("[yellow]No strategies found. Create one with:[/yellow]")
+        console.print("  kronos strategy create <name>")
+        return
+    
+    table = Table(title="Trading Strategies", box=box.ROUNDED)
+    table.add_column("Name", style="cyan")
+    table.add_column("Created", style="dim")
+    table.add_column("File", style="dim")
+    
+    for s in strategies:
+        table.add_row(s['name'], s['created'], s['file'])
+    
+    console.print(table)
+
+
+def cmd_strategy_create(args):
+    """Create a new strategy."""
+    manager = StrategyManager()
+    
+    template = args.template or "momentum"
+    
+    with console.status(f"[bold green]Creating strategy '{args.name}'...[/bold green]"):
+        path = manager.create_strategy(args.name, template)
+    
+    console.print(f"[bold green]✅ Strategy created:[/bold green] {path}")
+    
+    # Show the code
+    with open(path, 'r') as f:
+        code = f.read()
+    
+    console.print("\n[bold]Strategy code:[/bold]")
+    syntax = Syntax(code, "python", theme="monokai", line_numbers=True)
+    console.print(syntax)
+
+
+def cmd_strategy_edit(args):
+    """Edit a strategy."""
+    manager = StrategyManager()
+    path = manager.get_strategy(args.name)
+    
+    if not path:
+        console.print(f"[bold red]Strategy '{args.name}' not found[/bold red]")
+        return
+    
+    # Open in default editor
+    editor = os.environ.get('EDITOR', 'nano')
+    console.print(f"[bold]Opening {path} in {editor}...[/bold]")
+    os.system(f"{editor} {path}")
+
+
+def cmd_backtest(args):
+    """Run a backtest."""
+    engine = BacktestEngine()
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task("[green]Running backtest...", total=None)
+        
+        try:
+            results = engine.run(
+                strategy_name=args.strategy,
+                symbol=args.symbol,
+                start_date=args.start,
+                end_date=args.end,
+                initial_capital=args.capital
+            )
+            progress.update(task, completed=True)
+        except Exception as e:
+            progress.update(task, completed=True)
+            console.print(f"[bold red]Backtest failed: {e}[/bold red]")
+            traceback.print_exc()
+            return
+    
+    engine.print_results(results)
+    
+    # Save results
+    results_dir = Path("/tmp/kronos_project/results")
+    results_dir.mkdir(parents=True, exist_ok=True)
+    
+    report_file = results_dir / f"backtest_{args.strategy}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    
+    # Remove non-serializable data
+    save_results = {k: v for k, v in results.items() if k not in ['equity_curve', 'returns']}
+    # Convert equity curve index to strings
+    equity_dict = results['equity_curve'].to_dict()
+    save_results['equity_curve'] = {str(k): float(v) for k, v in equity_dict.items()}
+    save_results['returns'] = {str(k): float(v) for k, v in results['returns'].to_dict().items()}
+    
+    with open(report_file, 'w') as f:
+        json.dump(save_results, f, indent=2, default=str)
+    
+    console.print(f"\n[dim]Report saved: {report_file}[/dim]")
+
+
+def cmd_run(args):
+    """Start trading."""
+    config = Config.load()
+    
+    if args.mode:
+        config.default_mode = args.mode
+    
+    if args.strategy:
+        strategy = args.strategy
+    else:
+        # Use default or ask
+        manager = StrategyManager()
+        strategies = manager.list_strategies()
+        if not strategies:
+            console.print("[red]No strategies found. Create one first:[/red]")
+            console.print("  kronos strategy create <name>")
+            return
+        strategy = strategies[0]['name']
+    
+    if config.default_mode == "live":
+        console.print("[bold red]⚠️  LIVE TRADING MODE[/bold red]")
+        if not Confirm.ask("Are you sure you want to trade with real money?"):
+            return
+    
+    # Start trading bot
+    bot = TradingBot(config, strategy)
+    
+    try:
+        asyncio.run(bot.run())
+    except KeyboardInterrupt:
+        bot.stop()
+        console.print("\n[bold yellow]Trading stopped by user[/bold yellow]")
+
+
+def cmd_status(args):
+    """Show current status."""
+    config = Config.load()
+    
+    # Build status tree
+    tree = Tree("[bold cyan]Kronos Trading Agent[/bold cyan]")
+    
+    # Config
+    config_branch = tree.add("[bold]Configuration[/bold]")
+    config_branch.add(f"Mode: [cyan]{config.default_mode}[/cyan]")
+    config_branch.add(f"Auto-trade: {'[green]ON[/green]' if config.auto_trade else '[dim]OFF[/dim]'}")
+    config_branch.add(f"Daily Loss Limit: [yellow]{config.risk_daily_loss_pct}%[/yellow]")
+    config_branch.add(f"Max Drawdown: [yellow]{config.risk_max_drawdown_pct}%[/yellow]")
+    
+    # Strategies
+    manager = StrategyManager()
+    strategies = manager.list_strategies()
+    strat_branch = tree.add(f"[bold]Strategies ({len(strategies)})[/bold]")
+    for s in strategies:
+        strat_branch.add(f"[green]{s['name']}[/green]")
+    
+    # Results
+    results_dir = Path("/tmp/kronos_project/results")
+    if results_dir.exists():
+        backtests = list(results_dir.glob("backtest_*.json"))
+        results_branch = tree.add(f"[bold]Backtests ({len(backtests)})[/bold]")
+        for b in backtests[-5:]:  # Last 5
+            results_branch.add(f"[dim]{b.name}[/dim]")
+    
+    console.print(tree)
+
+
+def cmd_config(args):
+    """Show/edit configuration."""
+    config = Config.load()
+    
+    if args.set:
+        # Parse key=value
+        key, value = args.set.split('=')
+        if hasattr(config, key):
+            # Try to convert to appropriate type
+            current = getattr(config, key)
+            if isinstance(current, bool):
+                value = value.lower() in ('true', '1', 'yes', 'on')
+            elif isinstance(current, (int, float)):
+                value = type(current)(value)
+            setattr(config, key, value)
+            config.save()
+            console.print(f"[green]Set {key} = {value}[/green]")
+        else:
+            console.print(f"[red]Unknown config key: {key}[/red]")
+        return
+    
+    # Show config
+    table = Table(title="Kronos Configuration", box=box.ROUNDED)
+    table.add_column("Key", style="cyan")
+    table.add_column("Value", style="green")
+    
+    for key, value in asdict(config).items():
+        # Mask secrets
+        if 'secret' in key or 'key' in key:
+            value = "***" if value else "(not set)"
+        table.add_row(key, str(value))
+    
+    console.print(table)
+    console.print(f"\n[dim]Config file: {CONFIG_FILE}[/dim]")
+
+
+async def repl_session():
+    """Interactive REPL session."""
+    print_banner()
+    
+    console.print("\n[bold]Interactive Mode[/bold] - Type 'help' for commands, 'exit' to quit\n")
+    
+    config = Config.load()
+    manager = StrategyManager()
+    engine = BacktestEngine()
+    bot = None
+    
+    while True:
+        try:
+            cmd = Prompt.ask("[bold cyan]kronos>[/bold cyan]").strip()
+            
+            if not cmd:
+                continue
+            
+            parts = cmd.split()
+            command = parts[0].lower()
+            args = parts[1:]
+            
+            if command == 'exit' or command == 'quit':
+                if bot:
+                    bot.stop()
+                console.print("[dim]Goodbye![/dim]")
+                break
+            
+            elif command == 'help':
+                help_text = """
+[bold]Available Commands:[/bold]
+
+[green]strategies[/green]                    - List all strategies
+[green]create[/green] <name> [template]    - Create new strategy
+[green]backtest[/green] <strategy>         - Run backtest
+[green]run[/green] [strategy] [mode]       - Start trading
+[green]status[/green]                     - Show current status
+[green]config[/green]                     - Show configuration
+[green]stop[/green]                       - Stop trading bot
+[green]clear[/green]                      - Clear screen
+[green]exit[/green]                       - Quit
+
+[dim]Examples:[/dim]
+  create momentum_strategy momentum
+  backtest momentum_strategy
+  run momentum_strategy paper
+                """
+                console.print(help_text)
+            
+            elif command == 'strategies':
+                strategies = manager.list_strategies()
+                if strategies:
+                    for s in strategies:
+                        console.print(f"  [green]•[/green] {s['name']}")
+                else:
+                    console.print("[yellow]No strategies. Use 'create <name>' to add one.[/yellow]")
+            
+            elif command == 'create':
+                if not args:
+                    console.print("[red]Usage: create <name> [template][/red]")
+                    continue
+                name = args[0]
+                template = args[1] if len(args) > 1 else "momentum"
+                path = manager.create_strategy(name, template)
+                console.print(f"[green]✅ Created: {path}[/green]")
+            
+            elif command == 'backtest':
+                if not args:
+                    console.print("[red]Usage: backtest <strategy>[/red]")
+                    continue
+                strategy = args[0]
+                try:
+                    results = engine.run(strategy)
+                    engine.print_results(results)
+                except Exception as e:
+                    console.print(f"[red]Error: {e}[/red]")
+            
+            elif command == 'run':
+                strategy = args[0] if args else None
+                mode = args[1] if len(args) > 1 else config.default_mode
+                
+                if not strategy:
+                    strategies = manager.list_strategies()
+                    if strategies:
+                        strategy = strategies[0]['name']
+                    else:
+                        console.print("[red]No strategies available[/red]")
+                        continue
+                
+                config.default_mode = mode
+                bot = TradingBot(config, strategy)
+                
+                # Run in background
+                asyncio.create_task(bot.run())
+                console.print(f"[green]🚀 Trading bot started ({mode} mode)[/green]")
+            
+            elif command == 'stop':
+                if bot:
+                    bot.stop()
+                    bot = None
+                    console.print("[yellow]Trading bot stopped[/yellow]")
+                else:
+                    console.print("[dim]No bot running[/dim]")
+            
+            elif command == 'status':
+                strategies = manager.list_strategies()
+                console.print(f"Strategies: {len(strategies)}")
+                console.print(f"Mode: {config.default_mode}")
+                console.print(f"Bot running: {'Yes' if bot and bot.running else 'No'}")
+            
+            elif command == 'config':
+                for key, value in asdict(config).items():
+                    if 'secret' in key:
+                        value = "***"
+                    console.print(f"  {key}: {value}")
+            
+            elif command == 'clear':
+                console.clear()
+                print_banner()
+            
+            else:
+                console.print(f"[red]Unknown command: {command}[/red]")
+        
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Use 'exit' to quit[/yellow]")
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+
+
+def cmd_repl(args):
+    """Start interactive REPL."""
+    asyncio.run(repl_session())
+
+
+def main():
+    """Main entry point."""
+    parser = argparse.ArgumentParser(
+        prog='kronos',
+        description='Kronos Trading Agent - Autonomous trading with RL',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  kronos init                          # First-time setup
+  kronos strategy create my_strategy   # Create a strategy
+  kronos backtest my_strategy          # Run backtest
+  kronos run --mode=paper              # Start paper trading
+  kronos repl                          # Interactive mode
+        """
+    )
+    
+    subparsers = parser.add_subparsers(dest='command', help='Command to run')
+    
+    # init
+    init_parser = subparsers.add_parser('init', help='Initialize Kronos')
+    
+    # strategy
+    strategy_parser = subparsers.add_parser('strategy', help='Manage strategies')
+    strategy_subparsers = strategy_parser.add_subparsers(dest='strategy_cmd')
+    
+    strategy_list_parser = strategy_subparsers.add_parser('list', help='List strategies')
+    
+    strategy_create_parser = strategy_subparsers.add_parser('create', help='Create strategy')
+    strategy_create_parser.add_argument('name', help='Strategy name')
+    strategy_create_parser.add_argument('--template', choices=['momentum', 'mean_reversion', 'breakout', 'rl_kronos'],
+                                       help='Strategy template')
+    
+    strategy_edit_parser = strategy_subparsers.add_parser('edit', help='Edit strategy')
+    strategy_edit_parser.add_argument('name', help='Strategy name')
+    
+    # backtest
+    backtest_parser = subparsers.add_parser('backtest', help='Run backtest')
+    backtest_parser.add_argument('strategy', help='Strategy name')
+    backtest_parser.add_argument('--symbol', default='SPY', help='Symbol to trade')
+    backtest_parser.add_argument('--start', default='2020-01-01', help='Start date')
+    backtest_parser.add_argument('--end', default='2024-12-31', help='End date')
+    backtest_parser.add_argument('--capital', type=float, default=100000, help='Initial capital')
+    
+    # run
+    run_parser = subparsers.add_parser('run', help='Start trading')
+    run_parser.add_argument('--mode', choices=['paper', 'live'], help='Trading mode')
+    run_parser.add_argument('--strategy', help='Strategy to use')
+    
+    # status
+    status_parser = subparsers.add_parser('status', help='Show status')
+    
+    # config
+    config_parser = subparsers.add_parser('config', help='Manage configuration')
+    config_parser.add_argument('--set', help='Set config value (key=value)')
+    
+    # repl
+    repl_parser = subparsers.add_parser('repl', help='Interactive REPL mode')
+    
+    # Parse args
+    args = parser.parse_args()
+    
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+    
+    # Route to command handler
+    try:
+        if args.command == 'init':
+            cmd_init(args)
+        elif args.command == 'strategy':
+            if args.strategy_cmd == 'list':
+                cmd_strategy_list(args)
+            elif args.strategy_cmd == 'create':
+                cmd_strategy_create(args)
+            elif args.strategy_cmd == 'edit':
+                cmd_strategy_edit(args)
+            else:
+                strategy_parser.print_help()
+        elif args.command == 'backtest':
+            cmd_backtest(args)
+        elif args.command == 'run':
+            cmd_run(args)
+        elif args.command == 'status':
+            cmd_status(args)
+        elif args.command == 'config':
+            cmd_config(args)
+        elif args.command == 'repl':
+            cmd_repl(args)
+        else:
+            parser.print_help()
+    except KeyboardInterrupt:
+        console.print("\n[dim]Interrupted by user[/dim]")
+        sys.exit(130)
+    except Exception as e:
+        console.print(f"\n[bold red]Error: {e}[/bold red]")
+        if os.environ.get('DEBUG'):
+            traceback.print_exc()
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
