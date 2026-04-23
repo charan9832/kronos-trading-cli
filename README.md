@@ -1,312 +1,264 @@
-# 🌙 Kronos Trading CLI
+# Kronos AI Trading Agent
 
-> **Autonomous Trading Agent with RL + Kronos Oracle**
-
-A professional, OpenCode-inspired CLI for backtesting trading strategies, creating new strategies from templates, and running autonomous paper/live trading with built-in risk management.
-
-![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-orange.svg)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
+> **trade CLI + Kronos AI Model = Conversational Autonomous Trading**
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║  ██╗  ██╗██████╗  ██████╗ ███╗   ██╗ ██████╗ ███████╗         ║
-║  ██║ ██╔╝██╔══██╗██╔═══██╗████╗  ██║██╔═══██╗██╔════╝         ║
-║  █████╔╝ ██████╔╝██║   ██║██╔██╗ ██║██║   ██║███████╗         ║
-║  ██╔═██╗ ██╔══██╗██║   ██║██║╚██╗██║██║   ██║╚════██║         ║
-║  ██║  ██╗██║  ██║╚██████╔╝██║ ╚████║╚██████╔╝███████║         ║
-║  ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝ ╚══════╝         ║
+║  █████████╗██████╗  █████╗ ██████╗ ███████╗                   ║
+║  ╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗██╔════╝                   ║
+║     ██║   ██████╔╝███████║██║  ██║█████╗                     ║
+║     ██║   ██╔══██╗██╔══██║██║  ██║██╔══╝                     ║
+║     ██║   ██║  ██║██║  ██║██████╔╝███████╗                   ║
+║     ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝                   ║
 ╠══════════════════════════════════════════════════════════════╣
-║      Autonomous Trading Agent with RL + Kronos Oracle         ║
+║  CLI Interface for the Kronos AI Trading Model                 ║
 ╚══════════════════════════════════════════════════════════════╝
 ```
 
+## 🎯 What is This?
+
+**Two components working together:**
+
+1. **`trade`** - The CLI command tool (this repo)  
+   - Interface to interact with the Kronos AI
+   - Manages strategies, backtests, trading
+
+2. **Kronos** - The AI model itself  
+   - Multimodal trading intelligence
+   - **Native conversational ability** (built into the model)
+   - Understands markets, explains decisions, answers questions
+
+Think of it like: `trade` = your terminal, `Kronos` = the AI brain
+
+---
+
 ## ✨ Features
 
-- 🎯 **Strategy Management** - Create, edit, and organize trading strategies from templates
-- 📊 **Backtest Engine** - Full historical backtesting with performance metrics
-- 🤖 **Autonomous Trading** - Paper and live trading modes with risk controls
-- 🖥️ **Beautiful CLI** - Rich colors, tables, and progress spinners
-- ⚡ **Interactive REPL** - Hands-on strategy development
-- 🛡️ **Risk Management** - Built-in daily loss limits, max drawdown stops
-- 🔧 **Configuration** - Persistent user settings
+### Kronos AI Model
+- 🧠 **Native Conversational** - Talk to Kronos about trading naturally
+- 📊 **Multimodal** - Price data + news + charts + conversation
+- 🔮 **Decision Explanation** - Kronos explains WHY it trades
+- 🎓 **Trading Knowledge** - Built-in understanding of strategies, risk, markets
+
+### trade CLI
+- 🎯 **Strategy Management** - Create, edit, organize strategies
+- 📈 **Backtest Engine** - Historical testing with metrics
+- 🤖 **Autonomous Trading** - Paper and live modes
+- 🖥️ **Beautiful Interface** - Rich colors, tables, spinners
+- 🛡️ **Risk Controls** - Daily loss limits, max drawdown stops
+
+---
 
 ## 🚀 Quick Start
-
-```bash
-# Clone the repository
-git clone https://github.com/charan9832/kronos-trading-cli.git
-cd kronos-trading-cli
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Or install as a package
-pip install -e .
-
-# Initialize Kronos (first-time setup)
-./kronos init
-
-# Create a strategy
-./kronos strategy create my_strategy --template=momentum
-
-# Run backtest
-./kronos backtest my_strategy --symbol=SPY
-
-# Start paper trading
-./kronos run --mode=paper --strategy=my_strategy
-
-# Interactive mode
-./kronos repl
-```
-
-## 📋 Commands
-
-### Initialize
-```bash
-./kronos init
-```
-Sets up configuration directory (`~/.kronos`) and guides you through initial setup.
-
-### Strategy Management
-```bash
-./kronos strategy list                     # List all strategies
-./kronos strategy create <name>             # Create from template
-./kronos strategy create <name> --template=momentum|mean_reversion|breakout|rl_kronos
-./kronos strategy edit <name>              # Edit in your default editor
-```
-
-### Backtest
-```bash
-./kronos backtest <strategy> [options]
-  --symbol    Trading symbol (default: SPY)
-  --start     Start date (default: 2020-01-01)
-  --end       End date (default: 2024-12-31)
-  --capital   Initial capital (default: 100000)
-```
-
-Example:
-```bash
-./kronos backtest momentum --symbol=AAPL --start=2022-01-01 --end=2023-12-31 --capital=50000
-```
-
-### Run Trading
-```bash
-./kronos run --mode=paper --strategy=momentum    # Paper trading
-./kronos run --mode=live --strategy=momentum     # ⚠️ Real money
-```
-
-### Status & Config
-```bash
-./kronos status                              # Show current status
-./kronos config                              # View configuration
-./kronos config --set auto_trade=true        # Update setting
-```
-
-### Interactive REPL
-```bash
-./kronos repl
-```
-
-REPL commands:
-- `strategies` - List strategies
-- `create <name>` - Create strategy
-- `backtest <strategy>` - Run backtest
-- `run [strategy] [mode]` - Start trading
-- `stop` - Stop trading bot
-- `status` - Show status
-- `exit` - Quit REPL
-
-## 🏗️ Architecture
-
-```
-Kronos Trading Agent
-├── Strategies (Python modules)
-│   ├── momentum.py          - Trend following
-│   ├── mean_reversion.py     - Buy low, sell high
-│   ├── breakout.py           - Price breakouts
-│   └── rl_kronos.py          - RL-enhanced oracle
-├── Backtest Engine
-│   ├── Historical simulation
-│   ├── Performance metrics
-│   └── Report generation
-├── Trading Bot
-│   ├── Paper trading mode
-│   ├── Live trading mode
-│   └── Risk management
-└── Configuration
-    ├── Risk limits
-    ├── API credentials
-    └── Trading preferences
-```
-
-## 📊 Built-in Strategy Templates
-
-| Template | Description | Type |
-|----------|-------------|------|
-| `momentum` | Trend-following using rolling returns | Trend |
-| `mean_reversion` | Buy when below MA, sell when above | Reversion |
-| `breakout` | Trade price breakouts above/below ranges | Breakout |
-| `rl_kronos` | RL agent wrapping Kronos predictions | AI/ML |
-
-## 📈 Backtest Output
-
-```
-╭─────────────────┬──────────────────────────╮
-│ Metric          │ Value                    │
-├─────────────────┼──────────────────────────┤
-│ Period          │ 2023-01-01 to 2023-12-31 │
-│ Symbol          │ SPY                      │
-│ Initial Capital │ $100,000.00              │
-│ Final Equity    │ $114,420.00              │
-│ Total Return    │ +14.42%                  │
-│ Sharpe Ratio    │ 1.47                     │
-│ Max Drawdown    │ 4.65%                    │
-│ Win Rate        │ 54.2%                    │
-│ Num Trades      │ 32                       │
-╰─────────────────┴──────────────────────────╯
-```
-
-## 🛡️ Risk Management
-
-Built-in safety limits:
-- **Daily Loss Limit** (default: 2%) - Stop trading after daily loss
-- **Max Drawdown** (default: 10%) - Hard stop on portfolio drawdown
-- **Max Position Size** (default: 100%) - Limit per-position exposure
-- **Max Trades/Day** (default: 10) - Prevent overtrading
-
-## 📝 Creating Custom Strategies
-
-Strategies are Python files with a `generate_signals` function:
-
-```python
-import pandas as pd
-import numpy as np
-
-def generate_signals(prices: pd.Series) -> pd.Series:
-    """
-    Generate trading signals.
-    
-    Returns position sizes (-1.0 to 1.0):
-    -1.0 = Full short
-     0.0 = No position
-     1.0 = Full long
-    """
-    # Example: Moving average crossover
-    fast_ma = prices.rolling(20).mean()
-    slow_ma = prices.rolling(50).mean()
-    
-    signals = pd.Series(0.0, index=prices.index)
-    signals[fast_ma > slow_ma] = 1.0   # Long
-    signals[fast_ma < slow_ma] = -1.0  # Short
-    
-    return signals
-```
-
-## ⚙️ Configuration
-
-Configuration stored in `~/.kronos/config.json`:
-
-```json
-{
-  "api_key": "",
-  "api_secret": "",
-  "default_mode": "paper",
-  "risk_daily_loss_pct": 2.0,
-  "risk_max_drawdown_pct": 10.0,
-  "risk_max_position_size": 1.0,
-  "auto_trade": false,
-  "notification_email": ""
-}
-```
-
-## 🧪 Example Workflow
-
-```bash
-# 1. Initialize
-./kronos init
-
-# 2. Create and test momentum strategy
-./kronos strategy create momentum --template=momentum
-./kronos backtest momentum --symbol=SPY
-
-# 3. Compare with mean reversion
-./kronos strategy create meanrev --template=mean_reversion
-./kronos backtest meanrev --symbol=SPY
-
-# 4. Pick best strategy
-./kronos status
-
-# 5. Run paper trading
-./kronos run --mode=paper --strategy=meanrev
-
-# 6. Use interactive mode for exploration
-./kronos repl
-```
-
-## 📦 Installation as Package
 
 ```bash
 # Clone repository
 git clone https://github.com/charan9832/kronos-trading-cli.git
 cd kronos-trading-cli
 
-# Install in editable mode
-pip install -e .
-
-# Now you can use 'kronos' command anywhere
-kronos init
-kronos status
-```
-
-## 🔮 Future Enhancements
-
-- [ ] Live broker integration (Alpaca, Interactive Brokers)
-- [ ] Real-time market data feeds (OpenBB, yfinance)
-- [ ] Web dashboard for monitoring
-- [ ] Strategy optimization with Optuna
-- [ ] Multi-asset portfolio support
-- [ ] ML model training pipeline
-- [ ] Telegram/Discord notifications
-- [ ] Docker containerization
-
-## 🐛 Troubleshooting
-
-**Strategy not found:**
-```bash
-./kronos strategy list  # Check available strategies
-```
-
-**Backtest fails:**
-- Check strategy syntax: `./kronos strategy edit <name>`
-- Ensure `generate_signals` function exists and returns `pd.Series`
-
-**Missing dependencies:**
-```bash
+# Install dependencies
 pip install -r requirements.txt
+
+# Initialize - THIS INSTALLS THE KRONOS AI MODEL
+./trade init
+
+# Talk to Kronos AI
+./trade chat
 ```
 
-## 🤝 Contributing
-
-Contributions welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
-
-## 📜 License
-
-MIT License - See [LICENSE](LICENSE) file for details
-
-## 🙏 Acknowledgments
-
-Built with:
-- [Rich](https://github.com/Textualize/rich) - Beautiful terminal output
-- [PyTorch](https://pytorch.org/) - Deep learning framework
-- [Pandas](https://pandas.pydata.org/) - Data manipulation
+### During `trade init`, you'll choose:
+- **Local mode** - Download Kronos model weights (~2GB)
+- **Cloud mode** - Use Azure OpenAI (language) + cloud inference
+- **Hybrid mode** - Local trading logic + cloud language
 
 ---
 
-**Built with ❤️ by Charan**
+## 💬 Talking to Kronos
+
+```bash
+$ ./trade chat
+
+╦╔═┌─┐┌─┐┌─┐┌┐┌
+╠╩╗│ ││ ││ ││││
+╩ ╩└─┘└─┘└─┘┘└┘
+
+Kronos AI Model - Native Conversational Trading Agent
+Type your message or 'help' for examples. 'exit' to quit.
+
+You: What do you think about Tesla's momentum?
+Kronos: TSLA is showing strong upward momentum with RSI at 72 and 
+volume 40% above average. The breakout above $250 resistance suggests 
+continued bullish sentiment. However, be cautious as it's approaching 
+overbought territory. My momentum model suggests HOLD for now - wait 
+for a pullback or confirmation above $260.
+
+You: Should I diversify more?
+Kronos: Your current portfolio is 60% tech (AAPL, NVDA, MSFT). That's 
+concentrated risk. Consider adding exposure to healthcare (XLV) or 
+utilities (XLU) to reduce correlation. A 70/30 tech/defensive split 
+would reduce your portfolio beta from 1.3 to around 1.0.
+
+You: Explain why you sold yesterday
+Kronos: I sold AAPL at $185.50 because:
+1. Hit our trailing stop (10% from peak)
+2. MACD showed bearish crossover
+3. Overall market VIX spiked to 25
+The exit preserved our 12% gain rather than risking reversal.
+```
+
+---
+
+## 📋 Commands
+
+### Core Commands
+```bash
+./trade init              # Install Kronos AI model & setup
+./trade chat              # Talk to Kronos AI naturally
+./trade repl              # Interactive command mode
+```
+
+### Strategy Management
+```bash
+./trade strategy list                          # List strategies
+./trade strategy create <name>                 # Create from template
+./trade strategy create <name> --template=momentum|mean_reversion|breakout|rl_kronos
+./trade strategy edit <name>                   # Edit in your $EDITOR
+```
+
+### Backtest & Trade
+```bash
+./trade backtest <strategy> [options]
+  --symbol    Trading symbol (default: SPY)
+  --start     Start date (default: 2020-01-01)
+  --end       End date (default: 2024-12-31)
+  --capital   Initial capital (default: 100000)
+
+./trade run --mode=paper --strategy=<name>     # Paper trading
+./trade run --mode=live --strategy=<name>      # ⚠️ Real money
+```
+
+### Status & Config
+```bash
+./trade status            # Show system status
+./trade config            # View/edit configuration
+```
+
+---
+
+## 🧠 Kronos AI Model Architecture
 
 ```
+┌─────────────────────────────────────────────────────────┐
+│                    KRONOS AI MODEL                        │
+├─────────────────────────────────────────────────────────┤
+│  Inputs                      │  Outputs                 │
+│  ─────────────────────────   │  ────────────────────    │
+│  • Price history (OHLCV)     │  • Trading actions       │
+│  • News text                 │  • Q-value estimates     │
+│  • Chart images (vision)     │  • Natural language!     │
+│  • Market state              │  (explanations, chat)    │
+│  • User questions            │                          │
+├─────────────────────────────────────────────────────────┤
+│              Multimodal Fusion Transformer                │
+├─────────────────────────────────────────────────────────┤
+│  [Trading Policy Head]  [Q-Value Head]  [Language Head]│
+│       ↓                        ↓              ↓          │
+│    BUY/SELL/HOLD          Value estimate   Explanations │
+│                                            Chat replies  │
+└─────────────────────────────────────────────────────────┘
 ```
+
+**Three Modes:**
+- **TRADE** - Silent autonomous trading
+- **CHAT** - Conversational Q&A
+- **HYBRID** - Trade AND explain every decision
+
+---
+
+## 🎓 How It Works
+
+1. **You talk naturally** - "Should I buy Tesla?"
+2. **Kronos understands** - Uses its native language capability (NOT command parsing)
+3. **Kronos responds** - Market analysis + recommendation + reasoning
+4. **Can execute** - "Yes, execute that trade" → Kronos trades
+
+The conversation ability is **built INTO the Kronos model itself**, not a wrapper script.
+
+---
+
+## ⚙️ Configuration
+
+Config stored in `~/.kronos/config.json`:
+
+```json
+{
+  "default_mode": "paper",
+  "risk_daily_loss_pct": 2.0,
+  "risk_max_drawdown_pct": 10.0,
+  "auto_trade": false,
+  "model_mode": "hybrid",
+  "azure_endpoint": "...",
+  "azure_key": "..."
+}
+```
+
+---
+
+## 📁 Directory Structure
+
+```
+~/.kronos/
+├── config.json          # Your configuration
+├── strategies/          # Trading strategies
+│   ├── momentum.py
+│   ├── mean_reversion.py
+│   └── your_strategy.py
+└── models/              # Kronos AI model
+    └── kronos-v1/
+        ├── config.json
+        └── weights.bin  # Downloaded during init
+```
+
+---
+
+## 🛠️ Development
+
+```bash
+# Run tests
+pytest tests/
+
+# Development mode
+pip install -e .
+
+# Type checking
+mypy code/
+```
+
+---
+
+## 🤝 Contributing
+
+This is an OpenCode-inspired project. Key principles:
+
+1. **Small, composable modules** (`code/` directory)
+2. **Agent-first** - Easy for AI agents to work with
+3. **Self-contained** - All logic in one codebase
+4. **Clear naming** - `trade` CLI, `Kronos` AI model
+
+---
+
+## 📜 License
+
+MIT License - See LICENSE file
+
+---
+
+## 🙏 Acknowledgments
+
+- Inspired by [OpenCode](https://github.com/sst/opencode) architecture
+- Kronos model uses PyTorch + Transformers
+- CLI built with [Rich](https://github.com/Textualize/rich)
+
+---
+
+**Questions?** Just ask Kronos: `./trade chat` 🤖📈

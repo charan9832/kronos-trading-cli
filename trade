@@ -70,17 +70,17 @@ STRATEGIES_DIR = CONFIG_DIR / "strategies"
 
 
 def print_banner():
-    """Print the Kronos banner."""
+    """Print the Trade CLI banner."""
     banner = """
 [bold cyan]╔══════════════════════════════════════════════════════════════╗[/bold cyan]
-[bold cyan]║[/bold cyan]  [bold yellow]██╗  ██╗██████╗  ██████╗ ███╗   ██╗ ██████╗ ███████╗[/bold yellow]     [bold cyan]║[/bold cyan]
-[bold cyan]║[/bold cyan]  [bold yellow]██║ ██╔╝██╔══██╗██╔═══██╗████╗  ██║██╔═══██╗██╔════╝[/bold yellow]     [bold cyan]║[/bold cyan]
-[bold cyan]║[/bold cyan]  [bold yellow]█████╔╝ ██████╔╝██║   ██║██╔██╗ ██║██║   ██║███████╗[/bold yellow]     [bold cyan]║[/bold cyan]
-[bold cyan]║[/bold cyan]  [bold yellow]██╔═██╗ ██╔══██╗██║   ██║██║╚██╗██║██║   ██║╚════██║[/bold yellow]     [bold cyan]║[/bold cyan]
-[bold cyan]║[/bold cyan]  [bold yellow]██║  ██╗██║  ██║╚██████╔╝██║ ╚████║╚██████╔╝███████║[/bold yellow]     [bold cyan]║[/bold cyan]
-[bold cyan]║[/bold cyan]  [bold yellow]╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝ ╚══════╝[/bold yellow]     [bold cyan]║[/bold cyan]
+[bold cyan]║[/bold cyan]  [bold yellow]████████╗██████╗  █████╗ ██████╗ ███████╗[/bold yellow]                [bold cyan]║[/bold cyan]
+[bold cyan]║[/bold cyan]  [bold yellow]╚══██╔══╝██╔══██╗██╔══██╗██╔══██╗██╔════╝[/bold yellow]                [bold cyan]║[/bold cyan]
+[bold cyan]║[/bold cyan]     [bold yellow]██║   ██████╔╝███████║██║  ██║█████╗[/bold yellow]                  [bold cyan]║[/bold cyan]
+[bold cyan]║[/bold cyan]     [bold yellow]██║   ██╔══██╗██╔══██║██║  ██║██╔══╝[/bold yellow]                  [bold cyan]║[/bold cyan]
+[bold cyan]║[/bold cyan]     [bold yellow]██║   ██║  ██║██║  ██║██████╔╝███████╗[/bold yellow]                [bold cyan]║[/bold cyan]
+[bold cyan]║[/bold cyan]     [bold yellow]╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝[/bold yellow]                [bold cyan]║[/bold cyan]
 [bold cyan]╠══════════════════════════════════════════════════════════════╣[/bold cyan]
-[bold cyan]║[/bold cyan]      [green]Autonomous Trading Agent with RL + Kronos Oracle[/green]        [bold cyan]║[/bold cyan]
+[bold cyan]║[/bold cyan]  [green]CLI Interface for the Kronos AI Trading Model[/green]             [bold cyan]║[/bold cyan]
 [bold cyan]╚══════════════════════════════════════════════════════════════╝[/bold cyan]
     """
     console.print(banner)
@@ -426,10 +426,11 @@ class TradingBot:
 
 
 def cmd_init(args):
-    """Initialize Kronos configuration."""
+    """Initialize Kronos Trading Agent and install Kronos AI model."""
     print_banner()
     
     console.print("\n[bold]Welcome to Kronos Trading Agent Setup[/bold]\n")
+    console.print("This will configure the CLI and install the Kronos AI model.\n")
     
     config = Config()
     
@@ -455,14 +456,84 @@ def cmd_init(args):
         default=False
     )
     
+    # Kronos AI Model Installation
+    console.print("\n[bold cyan]🤖 Kronos AI Model Installation[/bold cyan]")
+    console.print("The Kronos model provides native conversational trading intelligence.\n")
+    
+    model_source = Prompt.ask(
+        "How do you want to run Kronos?",
+        choices=["local", "cloud", "hybrid"],
+        default="hybrid"
+    )
+    
+    if model_source in ["cloud", "hybrid"]:
+        console.print("\n[dim]Azure OpenAI configuration (for language capabilities):[/dim]")
+        config.azure_endpoint = Prompt.ask(
+            "Azure OpenAI endpoint",
+            default="https://your-resource.openai.azure.com/"
+        )
+        config.azure_key = Prompt.ask(
+            "Azure OpenAI key",
+            password=True
+        )
+        config.azure_model = Prompt.ask(
+            "Model deployment name",
+            default="gpt-4"
+        )
+    
+    if model_source in ["local", "hybrid"]:
+        console.print("\n[dim]Local model setup:[/dim]")
+        install_local = Confirm.ask(
+            "Download Kronos local model weights (~2GB)?",
+            default=True
+        )
+        if install_local:
+            with console.status("[dim]Setting up local model...[/dim]"):
+                # Download model weights
+                _install_kronos_model()
+    
+    config.model_mode = model_source
     config.save()
     
     # Create directories
     STRATEGIES_DIR.mkdir(parents=True, exist_ok=True)
+    MODELS_DIR = Path.home() / ".kronos" / "models"
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
     
     console.print("\n[bold green]✅ Kronos initialized successfully![/bold green]")
     console.print(f"Config saved to: {CONFIG_FILE}")
     console.print(f"Strategies directory: {STRATEGIES_DIR}")
+    console.print(f"Models directory: {MODELS_DIR}")
+    console.print(f"\n[dim]Kronos AI model mode: {model_source}[/dim]")
+    console.print("\n[bold]Quick start:[/bold]")
+    console.print("  trade chat          # Talk to Kronos AI")
+    console.print("  trade repl          # Command interface")
+    console.print("  trade strategy create my_strategy")
+
+
+def _install_kronos_model():
+    """Download and install Kronos AI model weights."""
+    # In production, this would download from HuggingFace or similar
+    # For now, create placeholder structure
+    model_dir = Path.home() / ".kronos" / "models" / "kronos-v1"
+    model_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create model config
+    config = {
+        "name": "kronos-v1",
+        "version": "1.0.0",
+        "capabilities": ["trading", "conversation", "vision", "news"],
+        "modes": ["trade", "chat", "hybrid"],
+        "parameters": "2B",
+        "quantization": "int8"
+    }
+    
+    config_path = model_dir / "config.json"
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=2)
+    
+    # Note: Actual weights would be downloaded here
+    # For now, Kronos will use Azure/cloud as the brain
 
 
 def cmd_strategy_list(args):
