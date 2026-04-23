@@ -46,9 +46,10 @@ class KronosConfig:
     # Modes
     default_mode: Mode = Mode.HYBRID
     
-    # Azure OpenAI for language backbone (optional, can run local)
-    azure_endpoint: str = ""
-    azure_key: str = ""
+    # OpenAI-compatible API configuration (works with OpenAI, Azure, local LLMs)
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4"
 
 
 class KronosBrain(nn.Module):

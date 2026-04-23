@@ -145,7 +145,9 @@ class KronosChatInterface:
             "positions": {"SPY": 50, "AAPL": 25},
             "total_value": 125000.00,
             "pnl_pct": 0.25,
-            "strategies": ["momentum", "mean_reversion"]
+            "strategies": ["momentum", "mean_reversion"],
+            "openai_base_url": self.config.openai_base_url,
+            "openai_model": self.config.openai_model
         }
         
         # Ask Kronos using its native conversational ability

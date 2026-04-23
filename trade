@@ -467,17 +467,17 @@ def cmd_init(args):
     )
     
     if model_source in ["cloud", "hybrid"]:
-        console.print("\n[dim]Azure OpenAI configuration (for language capabilities):[/dim]")
-        config.azure_endpoint = Prompt.ask(
-            "Azure OpenAI endpoint",
-            default="https://your-resource.openai.azure.com/"
+        console.print("\n[dim]OpenAI-compatible API configuration:[/dim]")
+        config.openai_base_url = Prompt.ask(
+            "Base URL",
+            default="https://api.openai.com/v1"
         )
-        config.azure_key = Prompt.ask(
-            "Azure OpenAI key",
+        config.openai_api_key = Prompt.ask(
+            "API key",
             password=True
         )
-        config.azure_model = Prompt.ask(
-            "Model deployment name",
+        config.openai_model = Prompt.ask(
+            "Model name",
             default="gpt-4"
         )
     

@@ -68,7 +68,7 @@ pip install -r requirements.txt
 
 ### During `trade init`, you'll choose:
 - **Local mode** - Download Kronos model weights (~2GB)
-- **Cloud mode** - Use Azure OpenAI (language) + cloud inference
+- **Cloud mode** - Use any OpenAI-compatible API (OpenAI, Azure, local LLM)
 - **Hybrid mode** - Local trading logic + cloud language
 
 ---
@@ -197,8 +197,9 @@ Config stored in `~/.kronos/config.json`:
   "risk_max_drawdown_pct": 10.0,
   "auto_trade": false,
   "model_mode": "hybrid",
-  "azure_endpoint": "...",
-  "azure_key": "..."
+  "openai_base_url": "https://api.openai.com/v1",
+  "openai_api_key": "sk-...",
+  "openai_model": "gpt-4"
 }
 ```
 
