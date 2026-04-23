@@ -804,6 +804,15 @@ def cmd_repl(args):
     asyncio.run(repl_session())
 
 
+def cmd_chat(args):
+    """Start AI chat mode."""
+    from code.chat_mode import ChatSession
+    
+    config = Config.load()
+    chat = ChatSession(config)
+    asyncio.run(chat.run())
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -817,6 +826,7 @@ Examples:
   kronos backtest my_strategy          # Run backtest
   kronos run --mode=paper              # Start paper trading
   kronos repl                          # Interactive mode
+  kronos chat                          # AI chat mode
         """
     )
     
@@ -862,6 +872,9 @@ Examples:
     # repl
     repl_parser = subparsers.add_parser('repl', help='Interactive REPL mode')
     
+    # chat
+    chat_parser = subparsers.add_parser('chat', help='AI-powered natural language chat mode')
+    
     # Parse args
     args = parser.parse_args()
     
@@ -892,6 +905,8 @@ Examples:
             cmd_config(args)
         elif args.command == 'repl':
             cmd_repl(args)
+        elif args.command == 'chat':
+            cmd_chat(args)
         else:
             parser.print_help()
     except KeyboardInterrupt:
