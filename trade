@@ -816,17 +816,17 @@ def cmd_chat(args):
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        prog='kronos',
-        description='Kronos Trading Agent - Autonomous trading with RL',
+        prog='trade',
+        description='Kronos Trading CLI - Command interface for the Kronos AI trading model',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  kronos init                          # First-time setup
-  kronos strategy create my_strategy   # Create a strategy
-  kronos backtest my_strategy          # Run backtest
-  kronos run --mode=paper              # Start paper trading
-  kronos repl                          # Interactive mode
-  kronos chat                          # AI chat mode
+  trade init                          # First-time setup
+  trade strategy create momentum      # Create a strategy
+  trade backtest my_strategy          # Run backtest
+  trade run --mode=paper              # Start paper trading with Kronos model
+  trade repl                          # Interactive command mode
+  trade chat                          # Talk to Kronos AI model
         """
     )
     
